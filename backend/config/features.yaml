@@ -1,0 +1,54 @@
+# SpeechLens feature extraction configuration
+# All thresholds and parameters referenced by code live here.
+# Units are documented inline.
+
+audio:
+  analysis_sample_rate: 16000        # Hz — target sample rate for analysis copy
+  max_duration_seconds: 180.0        # seconds — uploads longer than this are rejected
+  min_duration_seconds: 1.0          # seconds — uploads shorter than this are rejected
+  max_file_size_mb: 50.0             # MB — uploads larger than this are rejected before decoding
+
+framing:
+  # All frame-level features share the same hop_length so their time axes
+  # are aligned. Frame centring convention: each frame is centred at
+  #   t = frame_index * hop_length / sample_rate
+  # This matches librosa's default centre=True padding.
+  hop_length: 160                    # samples — 10 ms at 16 kHz, shared by all features
+
+rms:
+  # Short-time RMS for energy measurement and VAD.
+  frame_length: 400                  # samples — 25 ms at 16 kHz
+  # Absolute RMS is kept; dB values are relative to the recording's median
+  # speech-frame RMS (speech frames = frames where VAD is active).
+  # dB_rel = 20 * log10(rms / median_speech_rms)
+
+vad:
+  # Energy-based VAD. A frame is speech if its RMS (dB relative to the
+  # recording's median RMS across ALL frames) exceeds the threshold.
+  # Using a relative threshold makes VAD invariant to overall gain.
+  frame_length: 400                  # samples — 25 ms at 16 kHz (same as RMS)
+  threshold_db: -20.0                # dB below median RMS — frames quieter than this are silence
+  min_pause_duration_seconds: 0.25   # seconds — silent stretches shorter than this are not pauses
+  # Leading silence: silence before the first speech frame.
+  # Trailing silence: silence after the last speech frame.
+  # Neither is counted as an internal pause.
+
+f0:
+  # pYIN fundamental frequency estimation via librosa.pyin.
+  frame_length: 1024                 # samples — 64 ms at 16 kHz (needs longer window for low F0)
+  fmin: 65.0                         # Hz — minimum F0 search bound (covers male speech)
+  fmax: 400.0                        # Hz — maximum F0 search bound (covers female speech)
+  # A frame is voiced only if pYIN says voiced AND the VAD marks the frame as
+  # speech. This prevents silence/noise from being counted as voiced.
+  # voiced_probability is kept in the output as a raw diagnostic; it is not a
+  # calibrated confidence and is not used for filtering.
+  # Unvoiced frames have f0 = NaN and voiced_flag = False, never 0.
+  # voiced_fraction = count(voiced frames) / total frames
+
+rate:
+  # Speaking rate = transcript_word_count / (duration - leading_silence - trailing_silence)
+  #   in words per minute. This is the overall rate for the whole recording.
+  # Articulation rate = transcript_word_count / speech_time_excluding_pauses
+  #   in words per minute.
+  # Both are recording-level only. Local (per-word) rate requires word
+  # timestamps from the CTC aligner and comes in Phase 2.

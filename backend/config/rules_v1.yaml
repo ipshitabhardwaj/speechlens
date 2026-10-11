@@ -1,0 +1,43 @@
+# Rules v1 — provisional thresholds, not tuned on data
+version: "1"
+
+long_pause:
+  category: pause_control
+  # A participant pause is flagged if its duration exceeds
+  #   max(absolute_floor_seconds, reference_factor * reference_median_pause)
+  # If the reference has no internal pauses, the threshold is absolute_floor_seconds.
+  absolute_floor_seconds: 1.5           # seconds — minimum threshold regardless of reference
+  reference_factor: 2.0                 # multiplier on reference's median pause duration
+  severity_bands:
+    # excess_ratio = pause_duration / threshold
+    mild:     { min_excess_ratio: 1.0, max_excess_ratio: 2.0 }
+    moderate: { min_excess_ratio: 2.0, max_excess_ratio: 3.0 }
+    severe:   { min_excess_ratio: 3.0 }
+  recommendation: "Reduce pause length to maintain listener engagement. Practice transitioning smoothly between phrases."
+
+rate_deviation:
+  category: pacing
+  # rate_ratio = participant_articulation_rate / reference_articulation_rate
+  # Flagged if ratio < lower_bound or ratio > upper_bound.
+  upper_bound: 1.3                      # ratio above this is too fast
+  lower_bound: 0.7                      # ratio below this is too slow
+  severity_bands:
+    # excess = distance from nearest band edge
+    mild:     { min_excess: 0.0, max_excess: 0.15 }
+    moderate: { min_excess: 0.15, max_excess: 0.30 }
+    severe:   { min_excess: 0.30 }
+  recommendation_fast: "Slow down to match the reference pace. Rushing can reduce clarity and comprehension."
+  recommendation_slow: "Speed up to match the reference pace. A slower delivery may lose listener attention."
+
+flat_pitch:
+  category: vocal_variation
+  # iqr_ratio = participant_f0_iqr_semitones / reference_f0_iqr_semitones
+  # Flagged if iqr_ratio < min_iqr_fraction.
+  min_iqr_fraction: 0.5                 # participant IQR must be at least this fraction of reference
+  min_voiced_frames: 50                 # minimum voiced frames in either recording; below → unavailable
+  severity_bands:
+    # by iqr_ratio value
+    mild:     { min_ratio: 0.3, max_ratio: 0.5 }
+    moderate: { min_ratio: 0.15, max_ratio: 0.3 }
+    severe:   { max_ratio: 0.15 }
+  recommendation: "Add more pitch variation to your delivery. Monotone speech can reduce listener engagement and comprehension."

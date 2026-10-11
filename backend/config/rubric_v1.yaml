@@ -1,0 +1,31 @@
+# Rubric v1 — provisional formula weights, not tuned on data
+version: "1"
+
+dimensions:
+  pacing:
+    weight: 0.35
+    # score = max(0, base_score - penalty_per_unit * abs(rate_ratio - 1.0))
+    # rate_ratio = participant_articulation_rate / reference_articulation_rate
+    base_score: 100
+    penalty_per_unit: 250               # penalty per 1.0 of deviation from ratio 1.0
+
+  pause_control:
+    weight: 0.35
+    # score = max(0, base_score - sum of per-flaw penalties)
+    # Each long_pause flaw subtracts penalty_<severity>.
+    base_score: 100
+    penalty_mild: 8
+    penalty_moderate: 20
+    penalty_severe: 40
+
+  vocal_variation:
+    weight: 0.30
+    # score = base_score * clamp(iqr_ratio, 0, 1)
+    # iqr_ratio = participant_f0_iqr_semitones / reference_f0_iqr_semitones
+    # Unavailable if either recording has too few voiced frames.
+    base_score: 100
+
+overall:
+  # Weighted mean of available dimensions. If a dimension is unavailable it is
+  # excluded and the remaining weights are renormalised to sum to 1.0.
+  method: weighted_mean
