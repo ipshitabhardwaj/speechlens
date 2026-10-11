@@ -13,13 +13,20 @@ export interface FlawResponse {
   severity: string;
   start_seconds: number;
   end_seconds: number;
-  participant_measurement: Record<string, number>;
-  reference_measurement: Record<string, number>;
+  participant_measurement: Record<string, unknown>;
+  reference_measurement: Record<string, unknown>;
   deviation: number;
   evidence: string;
   interpretation: string;
   recommendation: string;
   scope: string;
+}
+
+export interface WordTimingResponse {
+  word: string;
+  start: number;
+  end: number;
+  score: number;
 }
 
 export interface DimensionResponse {
@@ -45,6 +52,8 @@ export interface AnalysisResultResponse {
   reference_duration: number;
   participant_rate_wpm: number | null;
   reference_rate_wpm: number | null;
+  participant_words: WordTimingResponse[] | null;
+  reference_words: WordTimingResponse[] | null;
 }
 
 export interface AnalysisResponse {

@@ -39,11 +39,16 @@ Full kickoff prompt: [docs/kickoff.md](docs/kickoff.md).
   - `energy_fallback`: VAD-based pauses and overall rate only, no word times.
   - `ctc`: wav2vec2-base-960h loaded via transformers (Apache-2.0), emissions + NumPy Viterbi trellis,
     per-word start/end, score = mean frame log-prob. Chunk long audio; cap uploads at 3 minutes.
+  The CTC model loads once per server process, lazily on first use, and is reused.
+  The pipeline reports a `loading_alignment_model` stage during the first load.
   WhisperX is excluded (it pulls pyannote-audio and pins torch 2.8).
 - **Comparison**: match words by transcript index, never by time. Timing features (word durations,
   pauses, local rate) are compared in word-indexed space with no time warping, so pacing flaws are
   never warped away. Pitch in semitones relative to speaker's median; energy in dB relative to
   recording's median speech level. Skip pitch rules when too few voiced frames.
+  Word starts (onsets) are reliable; word ends are 20–190 ms early.
+  Pause boundaries always come from the VAD, never from word gaps.
+  Local timing uses onset-to-onset intervals, not word durations.
   Contour DTW inside matched phrases is CUT for the 15 Oct deadline; do not build it.
 - **Fillers**: CUT for the 15 Oct deadline; do not build. (Design: voiced stretches between aligned
   words unexplained by transcript; labelled lower-reliability.)

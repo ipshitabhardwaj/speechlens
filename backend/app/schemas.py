@@ -32,6 +32,13 @@ class FlawResponse(BaseModel):
     scope: str
 
 
+class WordTimingResponse(BaseModel):
+    word: str
+    start: float
+    end: float
+    score: float
+
+
 class DimensionResponse(BaseModel):
     name: str
     score: float
@@ -55,6 +62,8 @@ class AnalysisResultResponse(BaseModel):
     reference_duration: float
     participant_rate_wpm: float | None = None
     reference_rate_wpm: float | None = None
+    participant_words: list[WordTimingResponse] | None = None
+    reference_words: list[WordTimingResponse] | None = None
 
 
 class AnalysisResponse(BaseModel):

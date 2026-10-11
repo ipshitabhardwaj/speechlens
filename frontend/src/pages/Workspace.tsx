@@ -14,6 +14,7 @@ const STAGE_LABELS: Record<string, string> = {
   queued: "Queued",
   decoding: "Decoding audio",
   extracting_features: "Extracting features",
+  loading_alignment_model: "Loading alignment model",
   aligning: "Aligning",
   comparing: "Detecting flaws",
   scoring: "Scoring rubric",

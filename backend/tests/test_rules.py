@@ -295,6 +295,15 @@ class TestRubric:
         pc_modified = next(d for d in rubric_modified.dimensions if d.name == "pause_control")
         assert pc_modified.score > pc_default.score
 
+    def test_energy_fallback_local_rate_unavailable(self) -> None:
+        """When using energy_fallback, local_rate is listed as unavailable."""
+        sig = _sine(220.0, 3.0, 0.3)
+        feat = _features(sig)
+        flaws, unavailable = detect_all_flaws(feat, feat, "energy_fallback")
+        lr_unavailable = [u for u in unavailable if u.startswith("local_rate:")]
+        assert len(lr_unavailable) == 1
+        assert "energy_fallback" in lr_unavailable[0]
+
     def test_unavailable_dimension_excluded(self) -> None:
         """When vocal_variation is unavailable, it is excluded from the overall
         score and weights are renormalised."""

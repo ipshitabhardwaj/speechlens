@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin, { type Region } from "wavesurfer.js/dist/plugins/regions.js";
@@ -8,12 +8,14 @@ import {
   type AnalysisResponse,
   type AnalysisResultResponse,
   type FlawResponse,
+  type WordTimingResponse,
 } from "../api";
 
 const STAGE_LABELS: Record<string, string> = {
   queued: "Queued",
   decoding: "Decoding audio",
   extracting_features: "Extracting features",
+  loading_alignment_model: "Loading alignment model",
   aligning: "Aligning",
   comparing: "Detecting flaws",
   scoring: "Scoring rubric",
@@ -35,6 +37,11 @@ const SEVERITY_BG: Record<string, string> = {
   mild: "bg-[#FEFCBF]",
   moderate: "bg-[#FEEBC8]",
   severe: "bg-[#FFF5F5]",
+};
+
+const ALIGNMENT_LABELS: Record<string, string> = {
+  ctc: "CTC forced alignment (wav2vec2-base-960h)",
+  energy_fallback: "energy fallback",
 };
 
 export default function Results() {
@@ -187,6 +194,8 @@ function ResultsView({
     seekToTime(result.flaws[index].start_seconds);
   }, [result.flaws, seekToTime]);
 
+  const alignmentLabel = ALIGNMENT_LABELS[result.alignment_method] || result.alignment_method;
+
   return (
     <div className="space-y-8">
       {/* Overall score */}
@@ -195,7 +204,7 @@ function ResultsView({
           <div>
             <h2 className="text-lg font-medium">Overall score</h2>
             <p className="text-xs text-[#718096] mt-1">
-              Rubric v{result.rubric.version} &middot; alignment: {result.alignment_method.replace("_", " ")}
+              Rubric v{result.rubric.version} &middot; alignment: {alignmentLabel}
             </p>
           </div>
           <div className="text-4xl font-bold" style={{ color: scoreColor(result.rubric.overall_score) }}>
@@ -220,6 +229,18 @@ function ResultsView({
           isParticipant
         />
       </section>
+
+      {/* Transcript with per-word timestamps */}
+      {result.participant_words && (
+        <section className="border border-[#E2DFD8] rounded-lg p-6 bg-white">
+          <h2 className="text-lg font-medium mb-3">Transcript</h2>
+          <TranscriptView
+            words={result.participant_words}
+            flaws={result.flaws}
+            onWordClick={(time) => seekToTime(time)}
+          />
+        </section>
+      )}
 
       {/* Reference waveform */}
       <section>
@@ -319,6 +340,67 @@ function ResultsView({
       </div>
     </div>
   );
+}
+
+
+function TranscriptView({
+  words,
+  flaws,
+  onWordClick,
+}: {
+  words: WordTimingResponse[];
+  flaws: FlawResponse[];
+  onWordClick: (time: number) => void;
+}) {
+  const wordFlawMap = useMemo(() => {
+    const map: Record<number, { severity: string; rule_id: string }> = {};
+    for (const flaw of flaws) {
+      if (flaw.scope === "recording") continue;
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        if (w.start >= flaw.start_seconds && w.start < flaw.end_seconds) {
+          const existing = map[i];
+          if (!existing || severityRank(flaw.severity) > severityRank(existing.severity)) {
+            map[i] = { severity: flaw.severity, rule_id: flaw.rule_id };
+          }
+        }
+      }
+    }
+    return map;
+  }, [words, flaws]);
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {words.map((w, i) => {
+        const flawInfo = wordFlawMap[i];
+        const isLowScore = w.score < -1.0;
+
+        let bg = "";
+        let textColor = "";
+        if (flawInfo) {
+          bg = SEVERITY_BG[flawInfo.severity] || "";
+          textColor = SEVERITY_TEXT[flawInfo.severity] || "";
+        }
+
+        return (
+          <button
+            key={i}
+            onClick={() => onWordClick(w.start)}
+            className={`px-1 py-0.5 rounded text-sm cursor-pointer hover:bg-[#EDF2F7] transition-colors ${bg} ${textColor} ${isLowScore ? "opacity-50" : ""}`}
+            title={`${w.start.toFixed(2)}s – ${w.end.toFixed(2)}s (score: ${w.score.toFixed(3)})${flawInfo ? ` [${flawInfo.rule_id}]` : ""}`}
+          >
+            {w.word}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function severityRank(severity: string): number {
+  if (severity === "severe") return 3;
+  if (severity === "moderate") return 2;
+  return 1;
 }
 
 
@@ -432,7 +514,7 @@ function FlawCard({
           <span className={`text-xs font-medium px-2 py-0.5 rounded ${SEVERITY_BG[flaw.severity]} ${SEVERITY_TEXT[flaw.severity]}`}>
             {flaw.severity}
           </span>
-          <span className="text-sm font-medium capitalize">{flaw.rule_id.replace("_", " ")}</span>
+          <span className="text-sm font-medium capitalize">{flaw.rule_id.replace(/_/g, " ")}</span>
         </div>
         <span className="text-xs text-[#718096] tabular-nums">
           {flaw.start_seconds.toFixed(1)}s &ndash; {flaw.end_seconds.toFixed(1)}s
@@ -455,9 +537,11 @@ function FlawCard({
       <div className="flex gap-6 text-xs text-[#718096]">
         <div>
           <span className="font-medium">Participant: </span>
-          {Object.entries(flaw.participant_measurement).map(([k, v]) => (
-            <span key={k}>{k.replace(/_/g, " ")} = {typeof v === "number" ? v.toFixed(2) : v}</span>
-          ))}
+          {Object.entries(flaw.participant_measurement)
+            .filter(([k]) => k !== "preceding_word" && k !== "gap_index" && k !== "word_range")
+            .map(([k, v]) => (
+              <span key={k}>{k.replace(/_/g, " ")} = {typeof v === "number" ? (v as number).toFixed(2) : String(v)}</span>
+            ))}
         </div>
         <div>
           <span className="font-medium">Deviation: </span>

@@ -116,9 +116,9 @@ def get_analysis(analysis_id: str) -> dict | None:
 
 
 def _run_pipeline(analysis_id: str) -> None:
+    from speechlens.alignment import get_aligner
     from speechlens.audio.decode import decode_audio
     from speechlens.features.extract import extract_features
-    from speechlens.alignment.energy_fallback import EnergyFallbackAligner
     from speechlens.flaws.rules import detect_all_flaws
     from speechlens.rubric.rubric import score_rubric
 
@@ -143,15 +143,23 @@ def _run_pipeline(analysis_id: str) -> None:
         ref_decoded.samples, ref_decoded.sample_rate, transcript, ref_dur,
     )
 
+    analysis["stage"] = "loading_alignment_model"
+    aligner = get_aligner()
+
     analysis["stage"] = "aligning"
-    aligner = EnergyFallbackAligner()
-    alignment = aligner.align(
+    part_alignment = aligner.align(
         part_decoded.samples, part_decoded.sample_rate, transcript, part_feat.vad,
+    )
+    ref_alignment = aligner.align(
+        ref_decoded.samples, ref_decoded.sample_rate, transcript, ref_feat.vad,
     )
 
     analysis["stage"] = "comparing"
-    flaws, unavailable = detect_all_flaws(part_feat, ref_feat, alignment.method)
-    unavailable.extend(alignment.unavailable)
+    flaws, unavailable = detect_all_flaws(
+        part_feat, ref_feat, part_alignment.method,
+        part_alignment.words, ref_alignment.words,
+    )
+    unavailable.extend(part_alignment.unavailable)
 
     analysis["stage"] = "scoring"
     rubric = score_rubric(part_feat, ref_feat, flaws, unavailable)
@@ -164,7 +172,7 @@ def _run_pipeline(analysis_id: str) -> None:
             "version": rubric.version,
             "dimensions": [dataclasses.asdict(d) for d in rubric.dimensions],
         },
-        "alignment_method": alignment.method,
+        "alignment_method": part_alignment.method,
         "participant_duration": round(part_dur, 3),
         "reference_duration": round(ref_dur, 3),
         "participant_rate_wpm": (
@@ -174,6 +182,14 @@ def _run_pipeline(analysis_id: str) -> None:
         "reference_rate_wpm": (
             round(ref_feat.rate.articulation_rate_wpm, 1)
             if ref_feat.rate else None
+        ),
+        "participant_words": (
+            [dataclasses.asdict(w) for w in part_alignment.words]
+            if part_alignment.words else None
+        ),
+        "reference_words": (
+            [dataclasses.asdict(w) for w in ref_alignment.words]
+            if ref_alignment.words else None
         ),
     }
 

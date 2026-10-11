@@ -90,14 +90,22 @@ class TestAnalysis:
         assert status["status"] == "complete", f"Analysis failed: {status.get('error')}"
 
         result = status["result"]
-        assert result["alignment_method"] == "energy_fallback"
-        assert len(result["flaws"]) == 3
-        for flaw in result["flaws"]:
-            assert flaw["rule_id"] == "long_pause"
+        assert result["alignment_method"] in ("ctc", "energy_fallback")
+
+        pause_flaws = [f for f in result["flaws"] if f["rule_id"] == "long_pause"]
+        assert len(pause_flaws) == 3
+        for flaw in pause_flaws:
             assert flaw["start_seconds"] > 0
             assert flaw["end_seconds"] > flaw["start_seconds"]
             assert "evidence" in flaw
             assert "interpretation" in flaw
+
+        if result["alignment_method"] == "ctc":
+            assert result["participant_words"] is not None
+            assert result["reference_words"] is not None
+            assert len(result["participant_words"]) > 0
+            for pw in pause_flaws:
+                assert "preceding_word" in pw["participant_measurement"]
 
         rubric = result["rubric"]
         assert rubric["version"] == "1"
@@ -132,6 +140,6 @@ class TestRubric:
         data = resp.json()
         assert data["version"] == "1"
         assert len(data["dimensions"]) == 3
-        assert len(data["rules"]) == 3
+        assert len(data["rules"]) == 4
         rule_ids = {r["rule_id"] for r in data["rules"]}
-        assert rule_ids == {"long_pause", "rate_deviation", "flat_pitch"}
+        assert rule_ids == {"long_pause", "rate_deviation", "flat_pitch", "local_rate"}

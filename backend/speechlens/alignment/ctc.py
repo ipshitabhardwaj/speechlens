@@ -31,12 +31,22 @@ _REMOVABLE = set(string.punctuation) | set("‘’“”–—…")
 
 # ── transcript normalisation ─────────────────────────────────────────────
 
-def normalize_transcript(transcript: str) -> tuple[list[int], list[str]]:
+def normalize_transcript(
+    transcript: str,
+    vocab: dict[str, int] | None = None,
+) -> tuple[list[int], list[str]]:
     """Normalise transcript to wav2vec2-base-960h token indices.
 
     Uppercases, strips punctuation, replaces spaces with ``|``.
     Raises ``ValueError`` naming every word that contains a character
     outside the model vocabulary (such as digits).
+
+    Parameters
+    ----------
+    transcript : str
+        Raw transcript text.
+    vocab : dict, optional
+        Character-to-index mapping. Defaults to the module-level ``VOCAB``.
 
     Returns
     -------
@@ -45,6 +55,9 @@ def normalize_transcript(transcript: str) -> tuple[list[int], list[str]]:
     words : list[str]
         Cleaned uppercase words (no separators).
     """
+    if vocab is None:
+        vocab = VOCAB
+
     text = transcript.strip()
     if not text:
         raise ValueError("Transcript is empty")
@@ -80,9 +93,9 @@ def normalize_transcript(transcript: str) -> tuple[list[int], list[str]]:
     tokens: list[int] = []
     for i, w in enumerate(clean_words):
         if i > 0:
-            tokens.append(SEP_IDX)
+            tokens.append(vocab["|"])
         for ch in w:
-            tokens.append(VOCAB[ch])
+            tokens.append(vocab[ch])
     return tokens, clean_words
 
 
@@ -256,12 +269,13 @@ class CTCAligner:
         self._model = Wav2Vec2ForCTC.from_pretrained(name).to(self._device)
         self._model.eval()
 
-        loaded = self._processor.tokenizer.get_vocab()
+        self._vocab: dict[str, int] = self._processor.tokenizer.get_vocab()
+
         for char, idx in VOCAB.items():
-            if loaded.get(char) != idx:
+            if self._vocab.get(char) != idx:
                 raise RuntimeError(
                     f"Vocab mismatch: expected {char!r}={idx}, "
-                    f"tokenizer has {loaded.get(char)}"
+                    f"tokenizer has {self._vocab.get(char)}"
                 )
 
     def get_emissions(
@@ -298,7 +312,7 @@ class CTCAligner:
         transcript: str,
         vad: VADResult,
     ) -> AlignmentResult:
-        tokens, words = normalize_transcript(transcript)
+        tokens, words = normalize_transcript(transcript, vocab=self._vocab)
         log_probs = self.get_emissions(samples, sample_rate)
         fd = FRAME_STRIDE / sample_rate
 

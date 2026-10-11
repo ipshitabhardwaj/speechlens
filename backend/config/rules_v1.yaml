@@ -41,3 +41,24 @@ flat_pitch:
     moderate: { min_ratio: 0.15, max_ratio: 0.3 }
     severe:   { max_ratio: 0.15 }
   recommendation: "Add more pitch variation to your delivery. Monotone speech can reduce listener engagement and comprehension."
+
+local_rate:
+  category: pacing
+  # Over a sliding window of N words, compare participant onset-to-onset span
+  # with reference onset-to-onset span. Flag when ratio falls outside [lower_bound, upper_bound].
+  # Overlapping flagged windows are merged into one flaw spanning those words.
+  window_words: 5
+  upper_bound: 1.4
+  lower_bound: 0.6
+  severity_bands:
+    mild:     { min_excess: 0.0, max_excess: 0.2 }
+    moderate: { min_excess: 0.2, max_excess: 0.4 }
+    severe:   { min_excess: 0.4 }
+  recommendation_fast: "Slow down in this section to match the reference pacing."
+  recommendation_slow: "Speed up in this section to match the reference pacing."
+
+word_comparison:
+  # Words with CTC alignment score below this threshold are excluded from comparison.
+  score_threshold: -1.0
+  # If more than this fraction of words are excluded, word-level rules return unavailable.
+  max_excluded_fraction: 0.30

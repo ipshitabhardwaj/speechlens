@@ -114,7 +114,7 @@ async def get_rubric() -> RubricInfoResponse:
 
     rules = []
     skip_keys = {"category", "severity_bands", "recommendation", "recommendation_fast", "recommendation_slow"}
-    for rule_id in ["long_pause", "rate_deviation", "flat_pitch"]:
+    for rule_id in ["long_pause", "rate_deviation", "flat_pitch", "local_rate"]:
         rule = rules_cfg[rule_id]
         thresholds = {k: v for k, v in rule.items() if k not in skip_keys}
         rules.append(RubricRuleResponse(
